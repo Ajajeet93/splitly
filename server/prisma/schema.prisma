@@ -1,0 +1,169 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  groupsCreated    Group[]           @relation("GroupCreator")
+  groupMemberships GroupMember[]
+  expensesPaid     Expense[]         @relation("ExpensePaidBy")
+  expensesCreated  Expense[]         @relation("ExpenseCreatedBy")
+  expenseSplits    ExpenseSplit[]
+  settlementsPaid  Settlement[]      @relation("SettlementPayer")
+  settlementsRcvd  Settlement[]      @relation("SettlementPayee")
+  comments         Comment[]
+  notifications    Notification[]
+  friendships      Friendship[]      @relation("FriendshipUser")
+  friendOf         Friendship[]      @relation("FriendshipFriend")
+
+  @@map("users")
+}
+
+model Group {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  emoji       String   @default("👥")
+  inviteToken String   @unique @map("invite_token")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  creator     User          @relation("GroupCreator", fields: [createdBy], references: [id])
+  members     GroupMember[]
+  expenses    Expense[]
+  settlements Settlement[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id       String   @id @default(uuid())
+  groupId  String   @map("group_id")
+  userId   String   @map("user_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_members")
+}
+
+model Expense {
+  id          String    @id @default(uuid())
+  groupId     String?   @map("group_id")
+  description String
+  amount      Decimal   @db.Decimal(10, 2)
+  category    String    @default("Other")
+  splitType   String    @map("split_type") // EQUAL | UNEQUAL | PERCENTAGE | SHARE
+  paidBy      String    @map("paid_by")
+  createdBy   String    @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  group    Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payer    User           @relation("ExpensePaidBy", fields: [paidBy], references: [id])
+  creator  User           @relation("ExpenseCreatedBy", fields: [createdBy], references: [id])
+  splits   ExpenseSplit[]
+  comments Comment[]
+
+  @@map("expenses")
+}
+
+model ExpenseSplit {
+  id         String   @id @default(uuid())
+  expenseId  String   @map("expense_id")
+  userId     String   @map("user_id")
+  amount     Decimal  @db.Decimal(10, 2)
+  percentage Decimal? @db.Decimal(5, 2)
+  share      Int?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("expense_splits")
+}
+
+model Settlement {
+  id        String   @id @default(uuid())
+  groupId   String?  @map("group_id")
+  payerId   String   @map("payer_id")
+  payeeId   String   @map("payee_id")
+  amount    Decimal  @db.Decimal(10, 2)
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  group Group?  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payer User    @relation("SettlementPayer", fields: [payerId], references: [id])
+  payee User    @relation("SettlementPayee", fields: [payeeId], references: [id])
+
+  @@map("settlements")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  expenseId String   @map("expense_id")
+  userId    String?  @map("user_id")
+  message   String
+  type      String   @default("user") // 'user' | 'system'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("comments")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  title     String
+  body      String?
+  link      String?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Friendship {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  friendId  String   @map("friend_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user   User @relation("FriendshipUser", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("FriendshipFriend", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@map("friendships")
+}
