@@ -31,6 +31,7 @@ model User {
   notifications    Notification[]
   friendships      Friendship[]      @relation("FriendshipUser")
   friendOf         Friendship[]      @relation("FriendshipFriend")
+  refreshTokens    RefreshToken[]
 
   @@map("users")
 }
@@ -166,4 +167,17 @@ model Friendship {
 
   @@unique([userId, friendId])
   @@map("friendships")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
 }
